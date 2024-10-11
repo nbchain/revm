@@ -12,6 +12,8 @@ pub mod blake2;
 #[cfg(feature = "blst")]
 pub mod bls12_381;
 pub mod bn128;
+#[cfg(feature = "expander")]
+pub mod expander;
 pub mod fatal_precompile;
 pub mod gnark;
 pub mod hash;
@@ -80,6 +82,10 @@ impl Precompiles {
                 gnark::VERIFY_GROTH16,
                 gnark::VERIFY_PLONK,
             ]);
+            #[cfg(feature = "expander")]
+            {
+                precompiles.extend([expander::VERIFY_EXPANDER]);
+            }
             Box::new(precompiles)
         })
     }
