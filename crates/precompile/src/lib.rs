@@ -13,6 +13,7 @@ pub mod blake2;
 pub mod bls12_381;
 pub mod bn128;
 pub mod fatal_precompile;
+pub mod gnark;
 pub mod hash;
 pub mod identity;
 #[cfg(any(feature = "c-kzg", feature = "kzg-rs"))]
@@ -76,6 +77,8 @@ impl Precompiles {
                 hash::SHA256,
                 hash::RIPEMD160,
                 identity::FUN,
+                gnark::VERIFY_GROTH16,
+                gnark::VERIFY_PLONK,
             ]);
             Box::new(precompiles)
         })

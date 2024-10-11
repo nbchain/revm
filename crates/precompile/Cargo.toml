@@ -60,6 +60,10 @@ p256 = { version = "0.13.2", optional = true, default-features = false, features
     "ecdsa",
 ] }
 
+# gnarl verify precompile
+ethabi = "18.0.0"
+gnark = { git = "https://github.com/NBnet/gnark-rs.git", package = "gnark-rs"}
+
 # utils
 cfg-if = { version = "1.0", default-features = false }
 
