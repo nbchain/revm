@@ -19,7 +19,10 @@ pub const VERIFY_PLONK: PrecompileWithAddress = PrecompileWithAddress(
 
 const GAS: u64 = 7500;
 
-fn verify_groth16(input: &Bytes, _gas_limit: u64) -> PrecompileResult {
+fn verify_groth16(input: &Bytes, gas_limit: u64) -> PrecompileResult {
+    if gas_limit < GAS {
+        return Err(PrecompileErrors::Error(PrecompileError::OutOfGas));
+    }
     let tokens = ethabi::decode(
         &[ParamType::Tuple(vec![
             ParamType::Uint(16),
@@ -88,7 +91,10 @@ fn verify_groth16(input: &Bytes, _gas_limit: u64) -> PrecompileResult {
     Ok(PrecompileOutput::new(GAS, bytes.into()))
 }
 
-fn verify_plonk(input: &Bytes, _gas_limit: u64) -> PrecompileResult {
+fn verify_plonk(input: &Bytes, gas_limit: u64) -> PrecompileResult {
+    if gas_limit < GAS {
+        return Err(PrecompileErrors::Error(PrecompileError::OutOfGas));
+    }
     let tokens = ethabi::decode(
         &[ParamType::Tuple(vec![
             ParamType::Uint(16),

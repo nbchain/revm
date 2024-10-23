@@ -14,6 +14,9 @@ pub mod bls12_381;
 pub mod bn128;
 #[cfg(feature = "expander")]
 pub mod expander;
+#[cfg(feature = "expander")]
+#[cfg(test)]
+mod expander_test;
 pub mod fatal_precompile;
 pub mod gnark;
 pub mod hash;
