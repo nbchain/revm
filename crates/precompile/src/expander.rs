@@ -1,18 +1,20 @@
 use std::{
     fs,
     io::{Cursor, Write},
+    panic,
     path::PathBuf,
 };
 
-use arith::FieldSerde;
-use ethabi::{ethereum_types::U256, ParamType};
-use expander::{
-    BN254ConfigSha2, Circuit, Config, GKRScheme, M31ExtConfigSha2, MPIConfig, Verifier,
-    SENTINEL_BN254, SENTINEL_M31,
+use anyhow::Result;
+use arith::{Field, FieldSerde};
+use circuit::Circuit;
+use config::{
+    BN254ConfigSha2, Config, GF2ExtConfigSha2, GKRConfig, GKRScheme, M31ExtConfigSha2, MPIConfig,
+    SENTINEL_BN254, SENTINEL_GF2, SENTINEL_M31,
 };
+use ethabi::{encode, ethereum_types::U256, ParamType, Token};
 use flate2::write::GzDecoder;
-use halo2curves::bn256::Fr;
-use mersenne31::M31Ext3;
+use gkr::Verifier;
 use once_cell::sync::Lazy;
 use revm_primitives::{hex, Bytes};
 use transcript::Proof;
@@ -33,6 +35,29 @@ pub const VERIFY_EXPANDER: PrecompileWithAddress = PrecompileWithAddress(
 
 const GAS: u64 = 7500;
 
+pub enum ErroeCode {
+    EVOpenIndexErr = 1000021,
+    EVReadIndexErr = 1000022,
+    EVParseIndexErr = 1000023,
+    EVUnpackInputErr = 1000024,
+    EVParseInputHeightErr = 1000025,
+    EVInputGreaterThanIndexHeightErr = 1000026,
+    EVParseInputHashErr = 1000027,
+    EVReadSideChainDataErr = 1000028,
+    EVGzipReadErr = 1000029,
+    EVGzipDecompressErr = 1000030,
+    EVUnpackSideChainDataErr = 1000031,
+    EVParseSideChainDataErr = 1000032,
+    EVOpenFileErr = 1000033,
+    EVWriteFileErr = 1000034,
+    EVCmdOutputGetErr = 1000035,
+    EVCmdStartErr = 1000036,
+    EVCmdResultGetErr = 1000037,
+    EVCmdWaitErr = 1000038,
+    EVInvalidInput = 1000039,
+    EVOtherErr = 1000040,
+}
+
 pub fn verify_expander(input: &Bytes, gas_limit: u64) -> PrecompileResult {
     if gas_limit < GAS {
         return Err(PrecompileErrors::Error(PrecompileError::OutOfGas));
@@ -40,16 +65,34 @@ pub fn verify_expander(input: &Bytes, gas_limit: u64) -> PrecompileResult {
     let input = match input[0] {
         0 => input[1..].to_vec(),
         1 => {
+            let input = input[1..].to_vec();
+            let mut e = GzDecoder::new(Vec::new());
+            e.write_all(&input).map_err(|_| {
+                PrecompileErrors::Error(PrecompileError::other(format!(
+                    "{}",
+                    ErroeCode::EVGzipDecompressErr as u32
+                )))
+            })?;
+            e.finish().map_err(|_| {
+                PrecompileErrors::Error(PrecompileError::other(format!(
+                    "{}",
+                    ErroeCode::EVGzipDecompressErr as u32
+                )))
+            })?
+        }
+        2 => {
             let index_file = SIDE_CHAIN_DATA_PATH.join(INDEX_FILE);
             let data_height = if index_file.exists() {
-                let content = fs::read_to_string(&index_file).map_err(|e| {
+                let content = fs::read_to_string(&index_file).map_err(|_| {
                     PrecompileErrors::Error(PrecompileError::other(format!(
-                        "decode verify expander error:{e}"
+                        "{}",
+                        ErroeCode::EVReadIndexErr as u32
                     )))
                 })?;
-                u64::from_str_radix(&content, 10).map_err(|e| {
+                u64::from_str_radix(&content, 10).map_err(|_| {
                     PrecompileErrors::Error(PrecompileError::other(format!(
-                        "decode verify expander error:{e}"
+                        "{}",
+                        ErroeCode::EVParseIndexErr as u32
                     )))
                 })?
             } else {
@@ -60,65 +103,58 @@ pub fn verify_expander(input: &Bytes, gas_limit: u64) -> PrecompileResult {
                 &[ParamType::Uint(256), ParamType::FixedBytes(32)],
                 &input[1..],
             )
-            .map_err(|e| {
+            .map_err(|_| {
                 PrecompileErrors::Error(PrecompileError::other(format!(
-                    "decode verify expander error:{e}"
+                    "{}",
+                    ErroeCode::EVUnpackInputErr as u32
                 )))
             })?;
             let height = tokens
                 .first()
                 .cloned()
                 .and_then(|token| token.into_uint())
-                .ok_or(PrecompileErrors::Error(PrecompileError::other(
-                    "verify expander id format error",
-                )))?;
+                .ok_or(PrecompileErrors::Error(PrecompileError::other(format!(
+                    "{}",
+                    ErroeCode::EVParseInputHeightErr as u32
+                ))))?;
             if height > U256::from(data_height) {
                 return Err(PrecompileErrors::Error(PrecompileError::other(format!(
-                    "height > data height"
+                    "{}",
+                    ErroeCode::EVInputGreaterThanIndexHeightErr as u32
                 ))));
             }
             let hash = tokens
                 .last()
                 .cloned()
                 .and_then(|token| token.into_fixed_bytes())
-                .ok_or(PrecompileErrors::Error(PrecompileError::other(
-                    "verify expander id format error",
-                )))?;
+                .ok_or(PrecompileErrors::Error(PrecompileError::other(format!(
+                    "{}",
+                    ErroeCode::EVParseInputHashErr as u32
+                ))))?;
+            if hash.len() < 4 {
+                return Err(PrecompileErrors::Error(PrecompileError::other(format!(
+                    "{}",
+                    ErroeCode::EVOtherErr as u32
+                ))));
+            }
             let hash = hex::encode(hash);
             let data_file = SIDE_CHAIN_DATA_PATH.join(hash[0..4].to_string()).join(hash);
 
-            let data = fs::read_to_string(data_file).map_err(|e| {
+            fs::read(data_file).map_err(|_| {
                 PrecompileErrors::Error(PrecompileError::other(format!(
-                    "verify expander error:{e}"
-                )))
-            })?;
-            let data = data.strip_prefix("0x").unwrap_or(&data).trim();
-            hex::decode(data).map_err(|e| {
-                PrecompileErrors::Error(PrecompileError::other(format!(
-                    "verify expander hex decode error:{e}"
+                    "{}",
+                    ErroeCode::EVReadSideChainDataErr as u32
                 )))
             })?
         }
         _ => {
-            return Err(PrecompileErrors::Error(PrecompileError::Other(
-                String::from("data type format error"),
-            )))
+            return Err(PrecompileErrors::Error(PrecompileError::other(format!(
+                "{}",
+                ErroeCode::EVInvalidInput as u32
+            ))))
         }
     };
 
-    let input = {
-        let mut e = GzDecoder::new(Vec::new());
-        e.write_all(&input).map_err(|e| {
-            PrecompileErrors::Error(PrecompileError::other(format!(
-                "verify expander gzdecode write_all error:{e}"
-            )))
-        })?;
-        e.finish().map_err(|e| {
-            PrecompileErrors::Error(PrecompileError::other(format!(
-                "verify expander gzdecode finish error:{e}"
-            )))
-        })?
-    };
     let tokens = ethabi::decode(
         &[ParamType::Tuple(vec![
             ParamType::Bytes,
@@ -127,9 +163,10 @@ pub fn verify_expander(input: &Bytes, gas_limit: u64) -> PrecompileResult {
         ])],
         &input,
     )
-    .map_err(|e| {
+    .map_err(|_| {
         PrecompileErrors::Error(PrecompileError::other(format!(
-            "decode verify expander error:{e}"
+            "{}",
+            ErroeCode::EVUnpackSideChainDataErr as u32
         )))
     })?;
 
@@ -137,106 +174,101 @@ pub fn verify_expander(input: &Bytes, gas_limit: u64) -> PrecompileResult {
         .first()
         .cloned()
         .and_then(|token| token.into_tuple())
-        .ok_or(PrecompileErrors::Error(PrecompileError::other(
-            "verify expander id format error",
-        )))?;
+        .ok_or(PrecompileErrors::Error(PrecompileError::other(format!(
+            "{}",
+            ErroeCode::EVUnpackSideChainDataErr as u32
+        ))))?;
 
     let circuit_bytes = tokens
         .first()
         .cloned()
         .and_then(|token| token.into_bytes())
-        .ok_or(PrecompileErrors::Error(PrecompileError::other(
-            "verify expander circuit format error",
-        )))?;
+        .ok_or(PrecompileErrors::Error(PrecompileError::other(format!(
+            "{}",
+            ErroeCode::EVUnpackSideChainDataErr as u32
+        ))))?;
 
     let witness_bytes = tokens
         .get(1)
         .cloned()
         .and_then(|token| token.into_bytes())
-        .ok_or(PrecompileErrors::Error(PrecompileError::other(
-            "verify expander witness format error",
-        )))?;
+        .ok_or(PrecompileErrors::Error(PrecompileError::other(format!(
+            "{}",
+            ErroeCode::EVUnpackSideChainDataErr as u32
+        ))))?;
 
     let proof_bytes = tokens
         .get(2)
         .cloned()
         .and_then(|token| token.into_bytes())
-        .ok_or(PrecompileErrors::Error(PrecompileError::other(
-            "verify expander proof format error",
-        )))?;
+        .ok_or(PrecompileErrors::Error(PrecompileError::other(format!(
+            "{}",
+            ErroeCode::EVUnpackSideChainDataErr as u32
+        ))))?;
 
     if circuit_bytes.len() < 40 {
-        return Err(PrecompileErrors::Error(PrecompileError::Other(
-            String::from("The circuit is not long enough"),
-        )));
+        return Err(PrecompileErrors::Error(PrecompileError::other(format!(
+            "{}",
+            ErroeCode::EVUnpackSideChainDataErr as u32
+        ))));
     }
     let field_bytes = circuit_bytes[8..8 + 32].try_into().unwrap_or_default();
-    let ret = match field_bytes {
-        SENTINEL_M31 => {
-            let mut circuit = Circuit::<M31ExtConfigSha2>::load_circuit_bytes(circuit_bytes)
-                .map_err(|e| {
-                    PrecompileErrors::Error(PrecompileError::other(format!(
-                        "load_circuit_bytes error:{e}"
-                    )))
-                })?;
-
-            circuit.load_witness_bytes(&witness_bytes).map_err(|e| {
-                PrecompileErrors::Error(PrecompileError::other(format!(
-                    "load_witness_bytes error:{e}"
-                )))
-            })?;
-
-            let config = Config::<M31ExtConfigSha2>::new(GKRScheme::Vanilla, MPIConfig::new());
-            let verifier = Verifier::new(&config);
-
-            let mut cursor = Cursor::new(proof_bytes);
-            let proof = Proof::deserialize_from(&mut cursor).map_err(|e| {
-                PrecompileErrors::Error(PrecompileError::other(format!("format proof error:{e}")))
-            })?;
-            let claimed_v = M31Ext3::deserialize_from(&mut cursor).map_err(|e| {
-                PrecompileErrors::Error(PrecompileError::other(format!("format claimed error:{e}")))
-            })?;
-            verifier.verify(&mut circuit, &claimed_v, &proof)
-        }
-        SENTINEL_BN254 => {
-            let mut circuit = Circuit::<BN254ConfigSha2>::load_circuit_bytes(circuit_bytes)
-                .map_err(|e| {
-                    PrecompileErrors::Error(PrecompileError::other(format!(
-                        "load_circuit_bytes error:{e}"
-                    )))
-                })?;
-
-            circuit.load_witness_bytes(&witness_bytes).map_err(|e| {
-                PrecompileErrors::Error(PrecompileError::other(format!(
-                    "load_witness_bytes error:{e}"
-                )))
-            })?;
-
-            let config = Config::<BN254ConfigSha2>::new(GKRScheme::Vanilla, MPIConfig::new());
-            let verifier = Verifier::new(&config);
-
-            let mut cursor = Cursor::new(proof_bytes);
-            let proof = Proof::deserialize_from(&mut cursor).map_err(|e| {
-                PrecompileErrors::Error(PrecompileError::other(format!("format proof error:{e}")))
-            })?;
-            let claimed_v = Fr::deserialize_from(&mut cursor).map_err(|e| {
-                PrecompileErrors::Error(PrecompileError::other(format!("format claimed error:{e}")))
-            })?;
-            verifier.verify(&mut circuit, &claimed_v, &proof)
-        }
+    let ret = panic::catch_unwind(|| match field_bytes {
+        SENTINEL_M31 => run_verify::<M31ExtConfigSha2>(circuit_bytes, witness_bytes, proof_bytes),
+        SENTINEL_BN254 => run_verify::<BN254ConfigSha2>(circuit_bytes, witness_bytes, proof_bytes),
+        SENTINEL_GF2 => run_verify::<GF2ExtConfigSha2>(circuit_bytes, witness_bytes, proof_bytes),
         _ => {
-            return Err(PrecompileErrors::Error(PrecompileError::Other(format!(
+            return Err(format!(
                 "Unknown field type. Field byte value: {:?}",
                 field_bytes
-            ))));
+            ));
         }
-    };
+    })
+    .map_err(|_| {
+        PrecompileErrors::Error(PrecompileError::other(format!(
+            "{}",
+            ErroeCode::EVOtherErr as u32
+        )))
+    })?
+    .map_err(|_| {
+        PrecompileErrors::Error(PrecompileError::other(format!(
+            "{}",
+            ErroeCode::EVOtherErr as u32
+        )))
+    })?;
 
-    let bytes = if ret {
-        "y".as_bytes().to_vec()
-    } else {
-        "n".as_bytes().to_vec()
-    };
+    Ok(PrecompileOutput::new(
+        GAS,
+        encode(&[Token::Bool(ret)]).into(),
+    ))
+}
 
-    Ok(PrecompileOutput::new(GAS, bytes.into()))
+fn load_proof_and_claimed_v<F: Field + FieldSerde>(bytes: &[u8]) -> Result<(Proof, F), String> {
+    let mut cursor = Cursor::new(bytes);
+
+    let proof =
+        Proof::deserialize_from(&mut cursor).map_err(|_| String::from("format proof error"))?;
+    let claimed_v =
+        F::deserialize_from(&mut cursor).map_err(|_| String::from("format claimed error"))?;
+
+    Ok((proof, claimed_v))
+}
+
+fn run_verify<C: GKRConfig>(
+    circuit_bytes: Vec<u8>,
+    witness_bytes: Vec<u8>,
+    proof_bytes: Vec<u8>,
+) -> Result<bool, String> {
+    let mut circuit = Circuit::<C>::load_circuit_bytes(circuit_bytes)
+        .map_err(|_| String::from("format claimed error "))?;
+    circuit.load_witness_bytes(&witness_bytes, false);
+
+    let config = Config::<C>::new(GKRScheme::Vanilla, MPIConfig::new());
+    let verifier = Verifier::new(&config);
+
+    let (proof, claimed_v) =
+        load_proof_and_claimed_v(&proof_bytes).expect("Unable to deserialize proof.");
+
+    let public_input = circuit.public_input.clone();
+    Ok(verifier.verify(&mut circuit, &public_input, &claimed_v, &proof))
 }

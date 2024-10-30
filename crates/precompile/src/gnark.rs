@@ -1,16 +1,27 @@
-use crate::primitives::Bytes;
-use ethabi::{ethereum_types::U256, ParamType};
+use anyhow::{anyhow, Result};
+use ethabi::{encode, ethereum_types::U256, ParamType, Token};
 use gnark::{gnark_groth16_verify, gnark_plonk_verify};
 
 use crate::{
-    Precompile, PrecompileError, PrecompileErrors, PrecompileOutput, PrecompileResult,
-    PrecompileWithAddress,
+    primitives::Bytes, Precompile, PrecompileError, PrecompileErrors, PrecompileOutput,
+    PrecompileResult, PrecompileWithAddress,
 };
 
 pub const VERIFY_GROTH16: PrecompileWithAddress = PrecompileWithAddress(
     crate::u64_to_address(0xff00),
     Precompile::Standard(verify_groth16),
 );
+pub enum ErroeCode {
+    GG16VWitnessNewErr = 1000001,
+    GG16VInputUnpackErr = 1000002,
+    GG16VVerifyErr = 1000003,
+    GG16VOtherErr = 1000004,
+
+    GPVInputUnpackErr = 1000011,
+    GPVWitnessNewErr = 1000012,
+    GPVerifyErr = 1000013,
+    GPOtherErr = 1000014,
+}
 
 pub const VERIFY_PLONK: PrecompileWithAddress = PrecompileWithAddress(
     crate::u64_to_address(0xff01),
@@ -23,78 +34,42 @@ fn verify_groth16(input: &Bytes, gas_limit: u64) -> PrecompileResult {
     if gas_limit < GAS {
         return Err(PrecompileErrors::Error(PrecompileError::OutOfGas));
     }
-    let tokens = ethabi::decode(
-        &[ParamType::Tuple(vec![
-            ParamType::Uint(16),
-            ParamType::Bytes,
-            ParamType::Bytes,
-            ParamType::Bytes,
-        ])],
-        &input,
-    )
-    .map_err(|e| {
+
+    let (id, proof, verify_key, witness) = decode_input(input).map_err(|_| {
         PrecompileErrors::Error(PrecompileError::other(format!(
-            "decode verify groth16 input error:{e}"
+            "{}",
+            ErroeCode::GG16VInputUnpackErr as u32
         )))
     })?;
 
-    let tokens = tokens
-        .first()
-        .cloned()
-        .and_then(|token| token.into_tuple())
-        .ok_or(PrecompileErrors::Error(PrecompileError::other(
-            "verify groth16 format error",
-        )))?;
+    let ret = gnark_groth16_verify(id, proof, verify_key, witness);
 
-    let id = tokens
-        .first()
-        .cloned()
-        .and_then(|token| token.into_uint())
-        .ok_or(PrecompileErrors::Error(PrecompileError::other(
-            "verify groth16 id format error",
-        )))?;
-    if id > U256::from(u16::MAX) {
-        return Err(PrecompileErrors::Error(PrecompileError::other(
-            "verify groth16 id format error",
-        )));
-    }
-    let id = id.as_u32() as u16;
-
-    let proof = tokens
-        .get(1)
-        .cloned()
-        .and_then(|token| token.into_bytes())
-        .ok_or(PrecompileErrors::Error(PrecompileError::other(
-            "verify groth16 proof format error",
-        )))?;
-    let verify_key = tokens
-        .get(2)
-        .cloned()
-        .and_then(|token| token.into_bytes())
-        .ok_or(PrecompileErrors::Error(PrecompileError::other(
-            "verify groth16 verify_key format error",
-        )))?;
-    let witness = tokens
-        .get(3)
-        .cloned()
-        .and_then(|token| token.into_bytes())
-        .ok_or(PrecompileErrors::Error(PrecompileError::other(
-            "verify groth16 witness format error",
-        )))?;
-
-    let bytes = if gnark_groth16_verify(id, proof, verify_key, witness) {
-        "y".as_bytes().to_vec()
-    } else {
-        "n".as_bytes().to_vec()
-    };
-
-    Ok(PrecompileOutput::new(GAS, bytes.into()))
+    Ok(PrecompileOutput::new(
+        GAS,
+        encode(&[Token::Bool(ret)]).into(),
+    ))
 }
 
 fn verify_plonk(input: &Bytes, gas_limit: u64) -> PrecompileResult {
     if gas_limit < GAS {
         return Err(PrecompileErrors::Error(PrecompileError::OutOfGas));
     }
+    let (id, proof, verify_key, witness) = decode_input(input).map_err(|_| {
+        PrecompileErrors::Error(PrecompileError::other(format!(
+            "{}",
+            ErroeCode::GG16VInputUnpackErr as u32
+        )))
+    })?;
+
+    let ret = gnark_plonk_verify(id, proof, verify_key, witness);
+
+    Ok(PrecompileOutput::new(
+        GAS,
+        encode(&[Token::Bool(ret)]).into(),
+    ))
+}
+
+fn decode_input(input: &Bytes) -> Result<(u16, Vec<u8>, Vec<u8>, Vec<u8>)> {
     let tokens = ethabi::decode(
         &[ParamType::Tuple(vec![
             ParamType::Uint(16),
@@ -104,60 +79,43 @@ fn verify_plonk(input: &Bytes, gas_limit: u64) -> PrecompileResult {
         ])],
         &input,
     )
-    .map_err(|e| {
-        PrecompileErrors::Error(PrecompileError::other(format!(
-            "decode verify plonk input error:{e}"
-        )))
-    })?;
+    .map_err(|e| anyhow!("decode input error:{e}"))?;
 
     let tokens = tokens
         .first()
         .cloned()
         .and_then(|token| token.into_tuple())
-        .ok_or(PrecompileErrors::Error(PrecompileError::other(
-            "verify plonk id format error",
-        )))?;
+        .ok_or(anyhow!("format input error"))?;
 
     let id = tokens
         .first()
         .cloned()
         .and_then(|token| token.into_uint())
-        .ok_or(PrecompileErrors::Error(PrecompileError::other(
-            "verify plonk id format error",
-        )))?;
+        .ok_or(anyhow!("id format error"))?;
+
     if id > U256::from(u16::MAX) {
-        return Err(PrecompileErrors::Error(PrecompileError::other(
-            "verify plonk id format error",
-        )));
+        return Err(anyhow!("iid is too large"));
     }
+
     let id = id.as_u32() as u16;
 
     let proof = tokens
         .get(1)
         .cloned()
         .and_then(|token| token.into_bytes())
-        .ok_or(PrecompileErrors::Error(PrecompileError::other(
-            "verify plonk proof format error",
-        )))?;
+        .ok_or(anyhow!("proof format error"))?;
+
     let verify_key = tokens
         .get(2)
         .cloned()
         .and_then(|token| token.into_bytes())
-        .ok_or(PrecompileErrors::Error(PrecompileError::other(
-            "verify plonk verify_key format error",
-        )))?;
+        .ok_or(anyhow!("verify_key format error"))?;
+
     let witness = tokens
         .get(3)
         .cloned()
         .and_then(|token| token.into_bytes())
-        .ok_or(PrecompileErrors::Error(PrecompileError::other(
-            "verify plonk witness format error",
-        )))?;
+        .ok_or(anyhow!("witness format error"))?;
 
-    let bytes = if gnark_plonk_verify(id, proof, verify_key, witness) {
-        "y".as_bytes().to_vec()
-    } else {
-        "n".as_bytes().to_vec()
-    };
-    Ok(PrecompileOutput::new(GAS, bytes.into()))
+    Ok((id, proof, verify_key, witness))
 }

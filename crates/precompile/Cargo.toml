@@ -22,6 +22,7 @@ rust_2018_idioms = "deny"
 all = "warn"
 
 [dependencies]
+anyhow = "1.0.87"
 revm-primitives = { path = "../primitives", version = "10.0.0", default-features = false }
 once_cell = { version = "1.19", default-features = false, features = ["alloc"] }
 
@@ -65,11 +66,13 @@ ethabi = "18.0.0"
 gnark = { git = "https://github.com/NBnet/gnark-rs.git", package = "gnark-rs"}
 
 # expander verify precompile
-expander = { git = "https://github.com/NBnet/Expander.git", tag = "v0.0.2-nb", package = "expander-rs", optional = true }
-transcript = { git = "https://github.com/NBnet/Expander.git", tag = "v0.0.2-nb", optional = true  }
-arith = { git = "https://github.com/NBnet/Expander.git", tag = "v0.0.2-nb", optional = true  }
-mersenne31 = { git = "https://github.com/NBnet/Expander.git", tag = "v0.0.2-nb", optional = true  }
-halo2curves = { git = "https://github.com/NBnet/halo2curves", default-features = false, features = [ "bits" ], optional = true }
+gkr = { git = "https://github.com/NBnet/Expander.git", tag = "v0.0.1-nb", optional = true }
+config = { git = "https://github.com/NBnet/Expander.git", tag = "v0.0.1-nb", optional = true }
+circuit = { git = "https://github.com/NBnet/Expander.git", tag = "v0.0.1-nb", optional = true }
+transcript = { git = "https://github.com/NBnet/Expander.git", tag = "v0.0.1-nb", optional = true  }
+arith = { git = "https://github.com/NBnet/Expander.git", tag = "v0.0.1-nb", optional = true  }
+mersenne31 = { git = "https://github.com/NBnet/Expander.git", tag = "v0.0.1-nb", optional = true  }
+halo2curves = { git = "https://github.com/NBnet/halo2curves", tag = "v0.0.1", default-features = false, features = [ "bits" ], optional = true }
 flate2 = { version = "1.0.34", optional = true  }
 
 # utils
@@ -87,6 +90,7 @@ flate2 = "1.0.34"
 ethabi = "18.0.0"
 hex = "0.4.3"
 
+
 [features]
 default = ["std", "c-kzg", "secp256k1", "portable", "blst"]
 std = [
@@ -101,7 +105,7 @@ std = [
 hashbrown = ["revm-primitives/hashbrown"]
 asm-keccak = ["revm-primitives/asm-keccak"]
 
-expander = ["dep:expander","dep:transcript", "dep:arith", "dep:halo2curves", "dep:flate2", "dep:mersenne31"]
+expander = ["dep:gkr","dep:transcript", "dep:arith", "dep:halo2curves", "dep:flate2", "dep:config", "dep:circuit", "dep:mersenne31"]
 
 optimism = ["revm-primitives/optimism", "secp256r1"]
 # Optimism default handler enabled Optimism handler register by default in EvmBuilder.
