@@ -24,8 +24,11 @@ use crate::{
     PrecompileWithAddress,
 };
 
-static SIDE_CHAIN_DATA_PATH: Lazy<PathBuf> =
-    Lazy::new(|| std::env::var("SIDE_CHAIN_DATA_PATH").unwrap().into());
+static SIDE_CHAIN_DATA_PATH: Lazy<PathBuf> = Lazy::new(|| {
+    std::env::var("SIDE_CHAIN_DATA_PATH")
+        .unwrap_or("/tmp/side_chain_data".to_string())
+        .into()
+});
 const INDEX_FILE: &str = "index";
 
 pub const VERIFY_EXPANDER: PrecompileWithAddress = PrecompileWithAddress(
