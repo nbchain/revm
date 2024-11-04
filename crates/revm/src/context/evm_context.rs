@@ -20,6 +20,7 @@ use core::{
     ops::{Deref, DerefMut},
 };
 use std::{boxed::Box, sync::Arc};
+use crate::primitives::PrecompileError;
 
 /// EVM context that contains the inner EVM context and precompiles.
 pub struct EvmContext<DB: Database> {
@@ -141,7 +142,12 @@ impl<DB: Database> EvmContext<DB> {
                 result.result = if e.is_oog() {
                     InstructionResult::PrecompileOOG
                 } else {
-                    InstructionResult::PrecompileError
+
+                    match e {
+                        PrecompileError::Other(msg) => {return Err(EVMError::Custom(msg))}
+                        _ => InstructionResult::PrecompileError
+                    }
+
                 };
             }
             Err(PrecompileErrors::Fatal { msg }) => return Err(EVMError::Precompile(msg)),
