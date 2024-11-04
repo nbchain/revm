@@ -47,16 +47,7 @@ pub enum ErroeCode {
     EVInputGreaterThanIndexHeightErr = 1000026,
     EVParseInputHashErr = 1000027,
     EVReadSideChainDataErr = 1000028,
-    EVGzipReadErr = 1000029,
     EVGzipDecompressErr = 1000030,
-    EVUnpackSideChainDataErr = 1000031,
-    EVParseSideChainDataErr = 1000032,
-    EVOpenFileErr = 1000033,
-    EVWriteFileErr = 1000034,
-    EVCmdOutputGetErr = 1000035,
-    EVCmdStartErr = 1000036,
-    EVCmdResultGetErr = 1000037,
-    EVCmdWaitErr = 1000038,
     EVInvalidInput = 1000039,
     EVOtherErr = 1000040,
 }
@@ -112,6 +103,7 @@ pub fn verify_expander(input: &Bytes, gas_limit: u64) -> PrecompileResult {
                     ErroeCode::EVUnpackInputErr as u32
                 )))
             })?;
+
             let height = tokens
                 .first()
                 .cloned()
@@ -120,12 +112,14 @@ pub fn verify_expander(input: &Bytes, gas_limit: u64) -> PrecompileResult {
                     "{}",
                     ErroeCode::EVParseInputHeightErr as u32
                 ))))?;
+
             if height > U256::from(data_height) {
                 return Err(PrecompileErrors::Error(PrecompileError::other(format!(
                     "{}",
                     ErroeCode::EVInputGreaterThanIndexHeightErr as u32
                 ))));
             }
+
             let hash = tokens
                 .last()
                 .cloned()
@@ -134,12 +128,7 @@ pub fn verify_expander(input: &Bytes, gas_limit: u64) -> PrecompileResult {
                     "{}",
                     ErroeCode::EVParseInputHashErr as u32
                 ))))?;
-            if hash.len() < 4 {
-                return Err(PrecompileErrors::Error(PrecompileError::other(format!(
-                    "{}",
-                    ErroeCode::EVOtherErr as u32
-                ))));
-            }
+
             let hash = hex::encode(hash);
             let data_file = SIDE_CHAIN_DATA_PATH.join(hash[0..4].to_string()).join(hash);
 
@@ -169,7 +158,7 @@ pub fn verify_expander(input: &Bytes, gas_limit: u64) -> PrecompileResult {
     .map_err(|_| {
         PrecompileErrors::Error(PrecompileError::other(format!(
             "{}",
-            ErroeCode::EVUnpackSideChainDataErr as u32
+            ErroeCode::EVOtherErr as u32
         )))
     })?;
 
@@ -179,7 +168,7 @@ pub fn verify_expander(input: &Bytes, gas_limit: u64) -> PrecompileResult {
         .and_then(|token| token.into_tuple())
         .ok_or(PrecompileErrors::Error(PrecompileError::other(format!(
             "{}",
-            ErroeCode::EVUnpackSideChainDataErr as u32
+            ErroeCode::EVOtherErr as u32
         ))))?;
 
     let circuit_bytes = tokens
@@ -188,7 +177,7 @@ pub fn verify_expander(input: &Bytes, gas_limit: u64) -> PrecompileResult {
         .and_then(|token| token.into_bytes())
         .ok_or(PrecompileErrors::Error(PrecompileError::other(format!(
             "{}",
-            ErroeCode::EVUnpackSideChainDataErr as u32
+            ErroeCode::EVOtherErr as u32
         ))))?;
 
     let witness_bytes = tokens
@@ -197,7 +186,7 @@ pub fn verify_expander(input: &Bytes, gas_limit: u64) -> PrecompileResult {
         .and_then(|token| token.into_bytes())
         .ok_or(PrecompileErrors::Error(PrecompileError::other(format!(
             "{}",
-            ErroeCode::EVUnpackSideChainDataErr as u32
+            ErroeCode::EVOtherErr as u32
         ))))?;
 
     let proof_bytes = tokens
@@ -206,13 +195,13 @@ pub fn verify_expander(input: &Bytes, gas_limit: u64) -> PrecompileResult {
         .and_then(|token| token.into_bytes())
         .ok_or(PrecompileErrors::Error(PrecompileError::other(format!(
             "{}",
-            ErroeCode::EVUnpackSideChainDataErr as u32
+            ErroeCode::EVOtherErr as u32
         ))))?;
 
     if circuit_bytes.len() < 40 {
         return Err(PrecompileErrors::Error(PrecompileError::other(format!(
             "{}",
-            ErroeCode::EVUnpackSideChainDataErr as u32
+            ErroeCode::EVOtherErr as u32
         ))));
     }
     let field_bytes = circuit_bytes[8..8 + 32].try_into().unwrap_or_default();

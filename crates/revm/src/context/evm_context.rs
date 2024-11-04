@@ -142,9 +142,8 @@ impl<DB: Database> EvmContext<DB> {
                 result.result = if e.is_oog() {
                     InstructionResult::PrecompileOOG
                 } else {
-
                     match e {
-                        PrecompileError::Other(msg) => {return Err(EVMError::Custom(msg))}
+                        PrecompileError::Other(msg) => {return Err(EVMError::Precompile(msg))}
                         _ => InstructionResult::PrecompileError
                     }
 
