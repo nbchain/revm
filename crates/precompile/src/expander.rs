@@ -38,7 +38,7 @@ pub const VERIFY_EXPANDER: PrecompileWithAddress = PrecompileWithAddress(
 
 const GAS: u64 = 7500;
 
-pub enum ErroeCode {
+pub enum ErrorCode {
     EVOpenIndexErr = 1000021,
     EVReadIndexErr = 1000022,
     EVParseIndexErr = 1000023,
@@ -47,16 +47,7 @@ pub enum ErroeCode {
     EVInputGreaterThanIndexHeightErr = 1000026,
     EVParseInputHashErr = 1000027,
     EVReadSideChainDataErr = 1000028,
-    EVGzipReadErr = 1000029,
     EVGzipDecompressErr = 1000030,
-    EVUnpackSideChainDataErr = 1000031,
-    EVParseSideChainDataErr = 1000032,
-    EVOpenFileErr = 1000033,
-    EVWriteFileErr = 1000034,
-    EVCmdOutputGetErr = 1000035,
-    EVCmdStartErr = 1000036,
-    EVCmdResultGetErr = 1000037,
-    EVCmdWaitErr = 1000038,
     EVInvalidInput = 1000039,
     EVOtherErr = 1000040,
 }
@@ -73,13 +64,13 @@ pub fn verify_expander(input: &Bytes, gas_limit: u64) -> PrecompileResult {
             e.write_all(&input).map_err(|_| {
                 PrecompileErrors::Error(PrecompileError::other(format!(
                     "{}",
-                    ErroeCode::EVGzipDecompressErr as u32
+                    ErrorCode::EVGzipDecompressErr as u32
                 )))
             })?;
             e.finish().map_err(|_| {
                 PrecompileErrors::Error(PrecompileError::other(format!(
                     "{}",
-                    ErroeCode::EVGzipDecompressErr as u32
+                    ErrorCode::EVGzipDecompressErr as u32
                 )))
             })?
         }
@@ -89,13 +80,13 @@ pub fn verify_expander(input: &Bytes, gas_limit: u64) -> PrecompileResult {
                 let content = fs::read_to_string(&index_file).map_err(|_| {
                     PrecompileErrors::Error(PrecompileError::other(format!(
                         "{}",
-                        ErroeCode::EVReadIndexErr as u32
+                        ErrorCode::EVReadIndexErr as u32
                     )))
                 })?;
                 u64::from_str_radix(&content, 10).map_err(|_| {
                     PrecompileErrors::Error(PrecompileError::other(format!(
                         "{}",
-                        ErroeCode::EVParseIndexErr as u32
+                        ErrorCode::EVParseIndexErr as u32
                     )))
                 })?
             } else {
@@ -109,51 +100,49 @@ pub fn verify_expander(input: &Bytes, gas_limit: u64) -> PrecompileResult {
             .map_err(|_| {
                 PrecompileErrors::Error(PrecompileError::other(format!(
                     "{}",
-                    ErroeCode::EVUnpackInputErr as u32
+                    ErrorCode::EVUnpackInputErr as u32
                 )))
             })?;
+
             let height = tokens
                 .first()
                 .cloned()
                 .and_then(|token| token.into_uint())
                 .ok_or(PrecompileErrors::Error(PrecompileError::other(format!(
                     "{}",
-                    ErroeCode::EVParseInputHeightErr as u32
+                    ErrorCode::EVParseInputHeightErr as u32
                 ))))?;
+
             if height > U256::from(data_height) {
                 return Err(PrecompileErrors::Error(PrecompileError::other(format!(
                     "{}",
-                    ErroeCode::EVInputGreaterThanIndexHeightErr as u32
+                    ErrorCode::EVInputGreaterThanIndexHeightErr as u32
                 ))));
             }
+
             let hash = tokens
                 .last()
                 .cloned()
                 .and_then(|token| token.into_fixed_bytes())
                 .ok_or(PrecompileErrors::Error(PrecompileError::other(format!(
                     "{}",
-                    ErroeCode::EVParseInputHashErr as u32
+                    ErrorCode::EVParseInputHashErr as u32
                 ))))?;
-            if hash.len() < 4 {
-                return Err(PrecompileErrors::Error(PrecompileError::other(format!(
-                    "{}",
-                    ErroeCode::EVOtherErr as u32
-                ))));
-            }
+
             let hash = hex::encode(hash);
             let data_file = SIDE_CHAIN_DATA_PATH.join(hash[0..4].to_string()).join(hash);
 
             fs::read(data_file).map_err(|_| {
                 PrecompileErrors::Error(PrecompileError::other(format!(
                     "{}",
-                    ErroeCode::EVReadSideChainDataErr as u32
+                    ErrorCode::EVReadSideChainDataErr as u32
                 )))
             })?
         }
         _ => {
             return Err(PrecompileErrors::Error(PrecompileError::other(format!(
                 "{}",
-                ErroeCode::EVInvalidInput as u32
+                ErrorCode::EVInvalidInput as u32
             ))))
         }
     };
@@ -169,7 +158,7 @@ pub fn verify_expander(input: &Bytes, gas_limit: u64) -> PrecompileResult {
     .map_err(|_| {
         PrecompileErrors::Error(PrecompileError::other(format!(
             "{}",
-            ErroeCode::EVUnpackSideChainDataErr as u32
+            ErrorCode::EVOtherErr as u32
         )))
     })?;
 
@@ -179,7 +168,7 @@ pub fn verify_expander(input: &Bytes, gas_limit: u64) -> PrecompileResult {
         .and_then(|token| token.into_tuple())
         .ok_or(PrecompileErrors::Error(PrecompileError::other(format!(
             "{}",
-            ErroeCode::EVUnpackSideChainDataErr as u32
+            ErrorCode::EVOtherErr as u32
         ))))?;
 
     let circuit_bytes = tokens
@@ -188,7 +177,7 @@ pub fn verify_expander(input: &Bytes, gas_limit: u64) -> PrecompileResult {
         .and_then(|token| token.into_bytes())
         .ok_or(PrecompileErrors::Error(PrecompileError::other(format!(
             "{}",
-            ErroeCode::EVUnpackSideChainDataErr as u32
+            ErrorCode::EVOtherErr as u32
         ))))?;
 
     let witness_bytes = tokens
@@ -197,7 +186,7 @@ pub fn verify_expander(input: &Bytes, gas_limit: u64) -> PrecompileResult {
         .and_then(|token| token.into_bytes())
         .ok_or(PrecompileErrors::Error(PrecompileError::other(format!(
             "{}",
-            ErroeCode::EVUnpackSideChainDataErr as u32
+            ErrorCode::EVOtherErr as u32
         ))))?;
 
     let proof_bytes = tokens
@@ -206,13 +195,13 @@ pub fn verify_expander(input: &Bytes, gas_limit: u64) -> PrecompileResult {
         .and_then(|token| token.into_bytes())
         .ok_or(PrecompileErrors::Error(PrecompileError::other(format!(
             "{}",
-            ErroeCode::EVUnpackSideChainDataErr as u32
+            ErrorCode::EVOtherErr as u32
         ))))?;
 
     if circuit_bytes.len() < 40 {
         return Err(PrecompileErrors::Error(PrecompileError::other(format!(
             "{}",
-            ErroeCode::EVUnpackSideChainDataErr as u32
+            ErrorCode::EVOtherErr as u32
         ))));
     }
     let field_bytes = circuit_bytes[8..8 + 32].try_into().unwrap_or_default();
@@ -230,13 +219,13 @@ pub fn verify_expander(input: &Bytes, gas_limit: u64) -> PrecompileResult {
     .map_err(|_| {
         PrecompileErrors::Error(PrecompileError::other(format!(
             "{}",
-            ErroeCode::EVOtherErr as u32
+            ErrorCode::EVOtherErr as u32
         )))
     })?
     .map_err(|_| {
         PrecompileErrors::Error(PrecompileError::other(format!(
             "{}",
-            ErroeCode::EVOtherErr as u32
+            ErrorCode::EVOtherErr as u32
         )))
     })?;
 
