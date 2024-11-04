@@ -62,13 +62,13 @@ pub fn verify_expander(input: &Bytes, gas_limit: u64) -> PrecompileResult {
             let input = input[1..].to_vec();
             let mut e = GzDecoder::new(Vec::new());
             e.write_all(&input).map_err(|_| {
-                PrecompileErrors::Error(PrecompileError::other(format!(
+                PrecompileErrors::Error(PrecompileError::Custom(format!(
                     "{}",
                     ErrorCode::EVGzipDecompressErr as u32
                 )))
             })?;
             e.finish().map_err(|_| {
-                PrecompileErrors::Error(PrecompileError::other(format!(
+                PrecompileErrors::Error(PrecompileError::Custom(format!(
                     "{}",
                     ErrorCode::EVGzipDecompressErr as u32
                 )))
@@ -78,13 +78,13 @@ pub fn verify_expander(input: &Bytes, gas_limit: u64) -> PrecompileResult {
             let index_file = SIDE_CHAIN_DATA_PATH.join(INDEX_FILE);
             let data_height = if index_file.exists() {
                 let content = fs::read_to_string(&index_file).map_err(|_| {
-                    PrecompileErrors::Error(PrecompileError::other(format!(
+                    PrecompileErrors::Error(PrecompileError::Custom(format!(
                         "{}",
                         ErrorCode::EVReadIndexErr as u32
                     )))
                 })?;
                 u64::from_str_radix(&content, 10).map_err(|_| {
-                    PrecompileErrors::Error(PrecompileError::other(format!(
+                    PrecompileErrors::Error(PrecompileError::Custom(format!(
                         "{}",
                         ErrorCode::EVParseIndexErr as u32
                     )))
@@ -98,7 +98,7 @@ pub fn verify_expander(input: &Bytes, gas_limit: u64) -> PrecompileResult {
                 &input[1..],
             )
             .map_err(|_| {
-                PrecompileErrors::Error(PrecompileError::other(format!(
+                PrecompileErrors::Error(PrecompileError::Custom(format!(
                     "{}",
                     ErrorCode::EVUnpackInputErr as u32
                 )))
@@ -108,13 +108,13 @@ pub fn verify_expander(input: &Bytes, gas_limit: u64) -> PrecompileResult {
                 .first()
                 .cloned()
                 .and_then(|token| token.into_uint())
-                .ok_or(PrecompileErrors::Error(PrecompileError::other(format!(
+                .ok_or(PrecompileErrors::Error(PrecompileError::Custom(format!(
                     "{}",
                     ErrorCode::EVParseInputHeightErr as u32
                 ))))?;
 
             if height > U256::from(data_height) {
-                return Err(PrecompileErrors::Error(PrecompileError::other(format!(
+                return Err(PrecompileErrors::Error(PrecompileError::Custom(format!(
                     "{}",
                     ErrorCode::EVInputGreaterThanIndexHeightErr as u32
                 ))));
@@ -124,7 +124,7 @@ pub fn verify_expander(input: &Bytes, gas_limit: u64) -> PrecompileResult {
                 .last()
                 .cloned()
                 .and_then(|token| token.into_fixed_bytes())
-                .ok_or(PrecompileErrors::Error(PrecompileError::other(format!(
+                .ok_or(PrecompileErrors::Error(PrecompileError::Custom(format!(
                     "{}",
                     ErrorCode::EVParseInputHashErr as u32
                 ))))?;
@@ -133,14 +133,14 @@ pub fn verify_expander(input: &Bytes, gas_limit: u64) -> PrecompileResult {
             let data_file = SIDE_CHAIN_DATA_PATH.join(hash[0..4].to_string()).join(hash);
 
             fs::read(data_file).map_err(|_| {
-                PrecompileErrors::Error(PrecompileError::other(format!(
+                PrecompileErrors::Error(PrecompileError::Custom(format!(
                     "{}",
                     ErrorCode::EVReadSideChainDataErr as u32
                 )))
             })?
         }
         _ => {
-            return Err(PrecompileErrors::Error(PrecompileError::other(format!(
+            return Err(PrecompileErrors::Error(PrecompileError::Custom(format!(
                 "{}",
                 ErrorCode::EVInvalidInput as u32
             ))))
@@ -156,7 +156,7 @@ pub fn verify_expander(input: &Bytes, gas_limit: u64) -> PrecompileResult {
         &input,
     )
     .map_err(|_| {
-        PrecompileErrors::Error(PrecompileError::other(format!(
+        PrecompileErrors::Error(PrecompileError::Custom(format!(
             "{}",
             ErrorCode::EVOtherErr as u32
         )))
@@ -166,7 +166,7 @@ pub fn verify_expander(input: &Bytes, gas_limit: u64) -> PrecompileResult {
         .first()
         .cloned()
         .and_then(|token| token.into_tuple())
-        .ok_or(PrecompileErrors::Error(PrecompileError::other(format!(
+        .ok_or(PrecompileErrors::Error(PrecompileError::Custom(format!(
             "{}",
             ErrorCode::EVOtherErr as u32
         ))))?;
@@ -175,7 +175,7 @@ pub fn verify_expander(input: &Bytes, gas_limit: u64) -> PrecompileResult {
         .first()
         .cloned()
         .and_then(|token| token.into_bytes())
-        .ok_or(PrecompileErrors::Error(PrecompileError::other(format!(
+        .ok_or(PrecompileErrors::Error(PrecompileError::Custom(format!(
             "{}",
             ErrorCode::EVOtherErr as u32
         ))))?;
@@ -184,7 +184,7 @@ pub fn verify_expander(input: &Bytes, gas_limit: u64) -> PrecompileResult {
         .get(1)
         .cloned()
         .and_then(|token| token.into_bytes())
-        .ok_or(PrecompileErrors::Error(PrecompileError::other(format!(
+        .ok_or(PrecompileErrors::Error(PrecompileError::Custom(format!(
             "{}",
             ErrorCode::EVOtherErr as u32
         ))))?;
@@ -193,13 +193,13 @@ pub fn verify_expander(input: &Bytes, gas_limit: u64) -> PrecompileResult {
         .get(2)
         .cloned()
         .and_then(|token| token.into_bytes())
-        .ok_or(PrecompileErrors::Error(PrecompileError::other(format!(
+        .ok_or(PrecompileErrors::Error(PrecompileError::Custom(format!(
             "{}",
             ErrorCode::EVOtherErr as u32
         ))))?;
 
     if circuit_bytes.len() < 40 {
-        return Err(PrecompileErrors::Error(PrecompileError::other(format!(
+        return Err(PrecompileErrors::Error(PrecompileError::Custom(format!(
             "{}",
             ErrorCode::EVOtherErr as u32
         ))));
@@ -217,13 +217,13 @@ pub fn verify_expander(input: &Bytes, gas_limit: u64) -> PrecompileResult {
         }
     })
     .map_err(|_| {
-        PrecompileErrors::Error(PrecompileError::other(format!(
+        PrecompileErrors::Error(PrecompileError::Custom(format!(
             "{}",
             ErrorCode::EVOtherErr as u32
         )))
     })?
     .map_err(|_| {
-        PrecompileErrors::Error(PrecompileError::other(format!(
+        PrecompileErrors::Error(PrecompileError::Custom(format!(
             "{}",
             ErrorCode::EVOtherErr as u32
         )))
