@@ -39,7 +39,6 @@ pub const VERIFY_EXPANDER: PrecompileWithAddress = PrecompileWithAddress(
 const GAS: u64 = 7500;
 
 pub enum ErrorCode {
-    EVOpenIndexErr = 1000021,
     EVReadIndexErr = 1000022,
     EVParseIndexErr = 1000023,
     EVUnpackInputErr = 1000024,
