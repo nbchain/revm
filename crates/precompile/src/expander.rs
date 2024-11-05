@@ -61,32 +61,20 @@ pub fn verify_expander(input: &Bytes, gas_limit: u64) -> PrecompileResult {
             let input = input[1..].to_vec();
             let mut e = GzDecoder::new(Vec::new());
             e.write_all(&input).map_err(|_| {
-                PrecompileErrors::Error(PrecompileError::Custom(format!(
-                    "{}",
-                    ErrorCode::EVGzipDecompressErr as u32
-                )))
+                PrecompileErrors::Error(PrecompileError::CustomCode(ErrorCode::EVGzipDecompressErr as u64))
             })?;
             e.finish().map_err(|_| {
-                PrecompileErrors::Error(PrecompileError::Custom(format!(
-                    "{}",
-                    ErrorCode::EVGzipDecompressErr as u32
-                )))
+                PrecompileErrors::Error(PrecompileError::CustomCode(ErrorCode::EVGzipDecompressErr as u64))
             })?
         }
         2 => {
             let index_file = SIDE_CHAIN_DATA_PATH.join(INDEX_FILE);
             let data_height = if index_file.exists() {
                 let content = fs::read_to_string(&index_file).map_err(|_| {
-                    PrecompileErrors::Error(PrecompileError::Custom(format!(
-                        "{}",
-                        ErrorCode::EVReadIndexErr as u32
-                    )))
+                    PrecompileErrors::Error(PrecompileError::CustomCode(ErrorCode::EVReadIndexErr as u64))
                 })?;
                 u64::from_str_radix(&content, 10).map_err(|_| {
-                    PrecompileErrors::Error(PrecompileError::Custom(format!(
-                        "{}",
-                        ErrorCode::EVParseIndexErr as u32
-                    )))
+                    PrecompileErrors::Error(PrecompileError::CustomCode(ErrorCode::EVParseIndexErr as u64))
                 })?
             } else {
                 0
@@ -97,52 +85,34 @@ pub fn verify_expander(input: &Bytes, gas_limit: u64) -> PrecompileResult {
                 &input[1..],
             )
             .map_err(|_| {
-                PrecompileErrors::Error(PrecompileError::Custom(format!(
-                    "{}",
-                    ErrorCode::EVUnpackInputErr as u32
-                )))
+                PrecompileErrors::Error(PrecompileError::CustomCode(ErrorCode::EVUnpackInputErr as u64))
             })?;
 
             let height = tokens
                 .first()
                 .cloned()
                 .and_then(|token| token.into_uint())
-                .ok_or(PrecompileErrors::Error(PrecompileError::Custom(format!(
-                    "{}",
-                    ErrorCode::EVParseInputHeightErr as u32
-                ))))?;
+                .ok_or(PrecompileErrors::Error(PrecompileError::CustomCode(ErrorCode::EVParseInputHeightErr as u64)))?;
 
             if height > U256::from(data_height) {
-                return Err(PrecompileErrors::Error(PrecompileError::Custom(format!(
-                    "{}",
-                    ErrorCode::EVInputGreaterThanIndexHeightErr as u32
-                ))));
+                return Err(PrecompileErrors::Error(PrecompileError::CustomCode(ErrorCode::EVInputGreaterThanIndexHeightErr as u64)));
             }
 
             let hash = tokens
                 .last()
                 .cloned()
                 .and_then(|token| token.into_fixed_bytes())
-                .ok_or(PrecompileErrors::Error(PrecompileError::Custom(format!(
-                    "{}",
-                    ErrorCode::EVParseInputHashErr as u32
-                ))))?;
+                .ok_or(PrecompileErrors::Error(PrecompileError::CustomCode(ErrorCode::EVParseInputHashErr as u64)))?;
 
             let hash = hex::encode(hash);
             let data_file = SIDE_CHAIN_DATA_PATH.join(hash[0..4].to_string()).join(hash);
 
             fs::read(data_file).map_err(|_| {
-                PrecompileErrors::Error(PrecompileError::Custom(format!(
-                    "{}",
-                    ErrorCode::EVReadSideChainDataErr as u32
-                )))
+                PrecompileErrors::Error(PrecompileError::CustomCode(ErrorCode::EVReadSideChainDataErr as u64))
             })?
         }
         _ => {
-            return Err(PrecompileErrors::Error(PrecompileError::Custom(format!(
-                "{}",
-                ErrorCode::EVInvalidInput as u32
-            ))))
+            return Err(PrecompileErrors::Error(PrecompileError::CustomCode(ErrorCode::EVInvalidInput as u64)))
         }
     };
 
@@ -155,53 +125,35 @@ pub fn verify_expander(input: &Bytes, gas_limit: u64) -> PrecompileResult {
         &input,
     )
     .map_err(|_| {
-        PrecompileErrors::Error(PrecompileError::Custom(format!(
-            "{}",
-            ErrorCode::EVOtherErr as u32
-        )))
+        PrecompileErrors::Error(PrecompileError::CustomCode(ErrorCode::EVOtherErr as u64))
     })?;
 
     let tokens = tokens
         .first()
         .cloned()
         .and_then(|token| token.into_tuple())
-        .ok_or(PrecompileErrors::Error(PrecompileError::Custom(format!(
-            "{}",
-            ErrorCode::EVOtherErr as u32
-        ))))?;
+        .ok_or(PrecompileErrors::Error(PrecompileError::CustomCode(ErrorCode::EVOtherErr as u64)))?;
 
     let circuit_bytes = tokens
         .first()
         .cloned()
         .and_then(|token| token.into_bytes())
-        .ok_or(PrecompileErrors::Error(PrecompileError::Custom(format!(
-            "{}",
-            ErrorCode::EVOtherErr as u32
-        ))))?;
+        .ok_or(PrecompileErrors::Error(PrecompileError::CustomCode(ErrorCode::EVOtherErr as u64)))?;
 
     let witness_bytes = tokens
         .get(1)
         .cloned()
         .and_then(|token| token.into_bytes())
-        .ok_or(PrecompileErrors::Error(PrecompileError::Custom(format!(
-            "{}",
-            ErrorCode::EVOtherErr as u32
-        ))))?;
+        .ok_or(PrecompileErrors::Error(PrecompileError::CustomCode(ErrorCode::EVOtherErr as u64)))?;
 
     let proof_bytes = tokens
         .get(2)
         .cloned()
         .and_then(|token| token.into_bytes())
-        .ok_or(PrecompileErrors::Error(PrecompileError::Custom(format!(
-            "{}",
-            ErrorCode::EVOtherErr as u32
-        ))))?;
+        .ok_or(PrecompileErrors::Error(PrecompileError::CustomCode(ErrorCode::EVOtherErr as u64)))?;
 
     if circuit_bytes.len() < 40 {
-        return Err(PrecompileErrors::Error(PrecompileError::Custom(format!(
-            "{}",
-            ErrorCode::EVOtherErr as u32
-        ))));
+        return Err(PrecompileErrors::Error(PrecompileError::CustomCode(ErrorCode::EVOtherErr as u64)));
     }
     let field_bytes = circuit_bytes[8..8 + 32].try_into().unwrap_or_default();
     let ret = panic::catch_unwind(|| match field_bytes {
@@ -216,16 +168,10 @@ pub fn verify_expander(input: &Bytes, gas_limit: u64) -> PrecompileResult {
         }
     })
     .map_err(|_| {
-        PrecompileErrors::Error(PrecompileError::Custom(format!(
-            "{}",
-            ErrorCode::EVOtherErr as u32
-        )))
+        PrecompileErrors::Error(PrecompileError::CustomCode(ErrorCode::EVOtherErr as u64))
     })?
     .map_err(|_| {
-        PrecompileErrors::Error(PrecompileError::Custom(format!(
-            "{}",
-            ErrorCode::EVOtherErr as u32
-        )))
+        PrecompileErrors::Error(PrecompileError::CustomCode(ErrorCode::EVOtherErr as u64))
     })?;
 
     Ok(PrecompileOutput::new(

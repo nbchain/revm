@@ -1,13 +1,13 @@
 use crate::primitives::{HaltReason, OutOfGasError, SuccessReason};
 
-#[repr(u8)]
+// #[repr(u8)]
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum InstructionResult {
     // Success Codes
     #[default]
     /// Execution should continue to the next one.
-    Continue = 0x00,
+    Continue ,//= 0x00,
     /// Encountered a `STOP` opcode
     Stop,
     /// Return from the current call.
@@ -19,7 +19,7 @@ pub enum InstructionResult {
 
     // Revert Codes
     /// Revert the transaction.
-    Revert = 0x10,
+    Revert ,//= 0x10,
     /// Exceeded maximum call depth.
     CallTooDeep,
     /// Insufficient funds for transfer.
@@ -33,11 +33,11 @@ pub enum InstructionResult {
 
     // Action Codes
     /// Indicates a call or contract creation.
-    CallOrCreate = 0x20,
+    CallOrCreate ,//= 0x20,
 
     // Error Codes
     /// Out of gas error.
-    OutOfGas = 0x50,
+    OutOfGas ,//= 0x50,
     /// Out of gas error encountered during memory expansion.
     MemoryOOG,
     /// The memory limit of the EVM has been exceeded.
@@ -92,6 +92,61 @@ pub enum InstructionResult {
     EofAuxDataTooSmall,
     /// `EXT*CALL` target address needs to be padded with 0s.
     InvalidEXTCALLTarget,
+
+    CustomCode(u64),
+
+}
+
+impl InstructionResult {
+    pub const fn to_code(&self) -> u64 {
+        match self {
+            InstructionResult::Continue => 0,
+            InstructionResult::Stop => 1,
+            InstructionResult::Return => 2,
+            InstructionResult::SelfDestruct => 3,
+            InstructionResult::ReturnContract => 4,
+
+            InstructionResult::Revert => 22,
+            InstructionResult::CallTooDeep => 23,
+            InstructionResult::OutOfFunds => 24,
+            InstructionResult::CreateInitCodeStartingEF00 => 25,
+            InstructionResult::InvalidEOFInitCode => 26,
+            InstructionResult::InvalidExtDelegateCallTarget => 27,
+
+            InstructionResult::CallOrCreate => 32,
+
+            InstructionResult::OutOfGas => 80,
+            InstructionResult::MemoryOOG => 81,
+            InstructionResult::MemoryLimitOOG => 82,
+            InstructionResult::PrecompileOOG => 83,
+            InstructionResult::InvalidOperandOOG => 84,
+            InstructionResult::OpcodeNotFound => 85,
+            InstructionResult::CallNotAllowedInsideStatic => 86,
+            InstructionResult::StateChangeDuringStaticCall => 87,
+            InstructionResult::InvalidFEOpcode => 88,
+            InstructionResult::InvalidJump => 89,
+            InstructionResult::NotActivated => 90,
+            InstructionResult::StackUnderflow => 91,
+            InstructionResult::StackOverflow => 92,
+            InstructionResult::OutOfOffset => 93,
+            InstructionResult::CreateCollision => 94,
+            InstructionResult::OverflowPayment => 95,
+            InstructionResult::PrecompileError => 96,
+            InstructionResult::NonceOverflow => 97,
+            InstructionResult::CreateContractSizeLimit => 98,
+            InstructionResult::CreateContractStartingWithEF => 99,
+            InstructionResult::CreateInitCodeSizeLimit => 100,
+            InstructionResult::FatalExternalError => 101,
+            InstructionResult::ReturnContractInNotInitEOF => 102,
+            InstructionResult::EOFOpcodeDisabledInLegacy => 103,
+            InstructionResult::EOFFunctionStackOverflow => 104,
+            InstructionResult::EofAuxDataOverflow => 105,
+            InstructionResult::EofAuxDataTooSmall => 106,
+            InstructionResult::InvalidEXTCALLTarget => 107,
+
+            InstructionResult::CustomCode(_) => 108,
+        }
+    }
 }
 
 impl From<SuccessReason> for InstructionResult {
@@ -139,6 +194,7 @@ impl From<HaltReason> for InstructionResult {
             HaltReason::InvalidEXTCALLTarget => Self::InvalidEXTCALLTarget,
             #[cfg(feature = "optimism")]
             HaltReason::FailedDeposit => Self::FatalExternalError,
+            HaltReason::CustomCode(v) => Self::CustomCode(v),
         }
     }
 }
@@ -197,6 +253,7 @@ macro_rules! return_error {
             | InstructionResult::EofAuxDataTooSmall
             | InstructionResult::EofAuxDataOverflow
             | InstructionResult::InvalidEXTCALLTarget
+            | InstructionResult::CustomCode(_)
     };
 }
 
@@ -343,6 +400,7 @@ impl From<InstructionResult> for SuccessOrHalt {
             InstructionResult::InvalidExtDelegateCallTarget => {
                 Self::Internal(InternalResult::InvalidExtDelegateCallTarget)
             }
+            InstructionResult::CustomCode(v) => Self::Halt(HaltReason::CustomCode(v))
         }
     }
 }

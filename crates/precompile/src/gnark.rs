@@ -30,10 +30,7 @@ fn verify_groth16(input: &Bytes, gas_limit: u64) -> PrecompileResult {
     }
 
     let (id, proof, verify_key, witness) = decode_input(input).map_err(|_| {
-        PrecompileErrors::Error(PrecompileError::Custom(format!(
-            "{}",
-            ErrorCode::GG16VInputUnpackErr as u32
-        )))
+        PrecompileErrors::Error(PrecompileError::CustomCode(ErrorCode::GG16VInputUnpackErr as u64))
     })?;
 
     let ret = gnark_groth16_verify(id, proof, verify_key, witness);
@@ -49,10 +46,7 @@ fn verify_plonk(input: &Bytes, gas_limit: u64) -> PrecompileResult {
         return Err(PrecompileErrors::Error(PrecompileError::OutOfGas));
     }
     let (id, proof, verify_key, witness) = decode_input(input).map_err(|_| {
-        PrecompileErrors::Error(PrecompileError::Custom(format!(
-            "{}",
-            ErrorCode::GG16VInputUnpackErr as u32
-        )))
+        PrecompileErrors::Error(PrecompileError::CustomCode(ErrorCode::GG16VInputUnpackErr as u64))
     })?;
 
     let ret = gnark_plonk_verify(id, proof, verify_key, witness);

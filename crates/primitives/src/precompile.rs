@@ -177,7 +177,7 @@ pub enum PrecompileError {
     /// Catch-all variant for other errors.
     Other(String),
 
-    Custom(String),
+    CustomCode(u64),
 }
 
 impl PrecompileError {
@@ -217,7 +217,7 @@ impl fmt::Display for PrecompileError {
             Self::BlobMismatchedVersion => "mismatched blob version",
             Self::BlobVerifyKzgProofFailed => "verifying blob kzg proof failed",
             Self::Other(s) => s,
-            Self::Custom(s) => s,
+            Self::CustomCode(s) => &s.to_string(),
         };
         f.write_str(s)
     }

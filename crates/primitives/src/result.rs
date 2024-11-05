@@ -487,6 +487,8 @@ pub enum HaltReason {
     /* Optimism errors */
     #[cfg(feature = "optimism")]
     FailedDeposit,
+
+    CustomCode(u64),
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
