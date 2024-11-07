@@ -11,16 +11,12 @@ pub const VERIFY_GROTH16: PrecompileWithAddress = PrecompileWithAddress(
     crate::u64_to_address(0xff00),
     Precompile::Standard(verify_groth16),
 );
-pub enum ErroeCode {
-    GG16VWitnessNewErr = 1000001,
-    GG16VInputUnpackErr = 1000002,
-    GG16VVerifyErr = 1000003,
-    GG16VOtherErr = 1000004,
+pub enum ErrorCode {
+    GG16VInputUnpackErr = 1000001,
+    GG16VVerifyErr = 1000002,
 
     GPVInputUnpackErr = 1000011,
-    GPVWitnessNewErr = 1000012,
-    GPVerifyErr = 1000013,
-    GPOtherErr = 1000014,
+    GPVVerifyErr = 1000012,
 }
 
 pub const VERIFY_PLONK: PrecompileWithAddress = PrecompileWithAddress(
@@ -36,13 +32,22 @@ fn verify_groth16(input: &Bytes, gas_limit: u64) -> PrecompileResult {
     }
 
     let (id, proof, verify_key, witness) = decode_input(input).map_err(|_| {
-        PrecompileErrors::Error(PrecompileError::other(format!(
+        PrecompileErrors::Error(PrecompileError::Other(format!(
             "{}",
-            ErroeCode::GG16VInputUnpackErr as u32
+            ErrorCode::GG16VInputUnpackErr as u32
         )))
     })?;
 
     let ret = gnark_groth16_verify(id, proof, verify_key, witness);
+
+    if !ret {
+        return Err(PrecompileErrors::Error(PrecompileError::Other(
+            format!(
+                "{}",
+                ErrorCode::GG16VVerifyErr as u32
+            )
+        )))
+    }
 
     Ok(PrecompileOutput::new(
         GAS,
@@ -55,13 +60,22 @@ fn verify_plonk(input: &Bytes, gas_limit: u64) -> PrecompileResult {
         return Err(PrecompileErrors::Error(PrecompileError::OutOfGas));
     }
     let (id, proof, verify_key, witness) = decode_input(input).map_err(|_| {
-        PrecompileErrors::Error(PrecompileError::other(format!(
+        PrecompileErrors::Error(PrecompileError::Other(format!(
             "{}",
-            ErroeCode::GG16VInputUnpackErr as u32
+            ErrorCode::GPVInputUnpackErr as u32
         )))
     })?;
 
     let ret = gnark_plonk_verify(id, proof, verify_key, witness);
+
+    if !ret {
+        return Err(PrecompileErrors::Error(PrecompileError::Other(
+            format!(
+                "{}",
+                ErrorCode::GPVVerifyErr as u32
+            )
+        )))
+    }
 
     Ok(PrecompileOutput::new(
         GAS,
@@ -79,7 +93,7 @@ fn decode_input(input: &Bytes) -> Result<(u16, Vec<u8>, Vec<u8>, Vec<u8>)> {
         ])],
         &input,
     )
-    .map_err(|e| anyhow!("decode input error:{e}"))?;
+        .map_err(|e| anyhow!("decode input error:{e}"))?;
 
     let tokens = tokens
         .first()
